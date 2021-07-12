@@ -1,26 +1,18 @@
-# Color-based Reflection Symmetry Detection
+Find rotational and reflection symmetries inside images in a given folder
+Uses https://github.com/mawady/ColorSymDetect to fetch reflection symmetries
+Usage:
+python main.py
+arguements:
+--input "custom input folder" (default: ./input/)
+--output "custom output folder" (default: ./output/)
+--mode "slow/fast, either uses Machine learning (slow) to detect rotational symmetries or simple rules (fast)" (default: slow)
+Requires matlab to be installed with the python extension
+Tested on python 3.7.10 with matlab R2020B
 
-Winner of ICCV 2017 2D reflection symmetry competitions (among participants - conference rank A*)
+Based on the following paper:
 
-Users of this software are encouraged to cite the following article:
-+ Elawady, Mohamed, Christophe Ducottet, Olivier Alata, Cécile Barat, and Philippe Colantoni. "Wavelet-based reflection symmetry detection via textural and color histograms." In Proceedings, ICCV Workshop on Detecting Symmetry in the Wild, Venice, vol. 3, p. 7. 2017.
+-   Elawady, Mohamed, Christophe Ducottet, Olivier Alata, Cécile Barat, and Philippe Colantoni. "Wavelet-based reflection symmetry detection via textural and color histograms." In Proceedings, ICCV Workshop on Detecting Symmetry in the Wild, Venice, vol. 3, p. 7. 2017.
+
 ```
-@inproceedings{elawady2017wavelet,
-  title={Wavelet-based reflection symmetry detection via textural and color histograms},
-  author={Elawady, Mohamed and Ducottet, Christophe and Alata, Olivier and Barat, Cecile and Colantoni, Philippe},
-  booktitle={Proceedings, ICCV Workshop on Detecting Symmetry in the Wild, Venice},
-  volume={3},
-  pages={7},
-  year={2017}
-}
+
 ```
-
-[You can download the paper here!](http://openaccess.thecvf.com/content_ICCV_2017_workshops/papers/w24/Elawady_Wavelet-Based_Reflection_Symmetry_ICCV_2017_paper.pdf)
-
-The sample photos are kindly provided by Aesthetic Visual Analysis (AVA) dataset.
-
-Contact: Mohamed Elawady (mohamed [dot] elawady [at] univ-st-etienne [dot] fr)
-
-FILE:
-+ main.m - code for computer symmetry on an image and display the candidates' info (axes, voting representation)
-+ symBilOurCentLogGaborHSV.m - code for main function to compute symmetry on an image
