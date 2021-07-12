@@ -1,0 +1,7 @@
+__pycache__/*
+.vscode/*
+output/ap/*
+output/lc/*
+output/lc2/*
+output/mla/*
+input/*
