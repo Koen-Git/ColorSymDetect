@@ -1,3 +1,14 @@
+# Find rotational and reflection symmetries inside images in a given folder
+# Uses https://github.com/mawady/ColorSymDetect to fetch reflection symmetries
+# Usage:
+# python main.py 
+# arguements:
+# --input "custom input folder" (default: ./input/)
+# --output "custom output folder" (default: ./output/)
+# --mode "slow/fast, either uses Machine learning (slow) to detect rotational symmetries or simple rules (fast)" (default: slow)
+# Requires matlab to be installed with the python extension
+# Tested on python 3.7.10 with matlab R2020B
+
 import matlab.engine
 from matplotlib import image
 from matplotlib import pyplot as plt
@@ -14,6 +25,7 @@ symThresholdBC = parameters.symThresholdBC
 normThresholdBC = parameters.normThresholdBC
 symThresholdAC = parameters.symThresholdAC
 normThresholdAC = parameters.normThresholdAC
+rc = parameters.rc
 lineSimilarity = parameters.lineSimilarity
 rotationSimilarity = parameters.rotationSimilarity
 circleSymThreshold = parameters.circleSymThreshold
@@ -40,7 +52,7 @@ def getSymmetries(inputFile, data):
 
 # Recursively cut up images and fetch symmetries until 
 # the processed image is smaller than minSize parameter
-def recursiveSym(img, symmetries, depth, minSize, locMove={"h":0,"w":0}):
+def recursiveSym(img, symmetries, depth, minSize, rc, locMove={"h":0,"w":0}):
     h, w, _ = img.shape
     if h < minSize.get("h") or w < minSize.get("w"):
         return
@@ -50,31 +62,19 @@ def recursiveSym(img, symmetries, depth, minSize, locMove={"h":0,"w":0}):
     del mat_a
     if len(syms) < 1:
         return
-    
-    mainSyms = []
 
-    
     symThreshold = symThresholdBC
     if args.mode == "fast":
-        symThreshold = symThresholdAC
+        symThreshold = symThresholdBC
 
     # Copy the top three symmetry lines (if they exist)
     # Any lines below threshold can be skipped, to reduce computation time
-    if len(syms) == 1:
-        if syms[0][2] > symThreshold:
-            mainSyms = [syms[0][0].copy()]
-    elif len(syms) == 2:
-        if syms[0][2] > symThreshold:
-            mainSyms.append(syms[0][0].copy())
-        if syms[1][2] > symThreshold:
-            mainSyms.append(syms[1][0].copy())
-    else:
-        if syms[0][2] > symThreshold:
-            mainSyms.append(syms[0][0].copy())
-        if syms[1][2] > symThreshold:
-            mainSyms.append(syms[1][0].copy())
-        if syms[2][2] > symThreshold:
-            mainSyms.append(syms[2][0].copy())
+    mainSyms = []
+    if rc > len(syms):
+        rc = len(syms)
+    for i in range(0, rc):
+        if syms[i][2] > symThreshold:
+            mainSyms.append(syms[i][0].copy())
 
     # Adjust location for symmetry lines in the cut images
     for sym in syms:
@@ -100,19 +100,19 @@ def recursiveSym(img, symmetries, depth, minSize, locMove={"h":0,"w":0}):
             img02 = img[min(int(mainSym[1]), int(mainSym[3])):max(int(mainSym[1]), int(mainSym[3])), int(mainSym[0]):w]
 
             newLocMove = {"h": locMove.get("h") + min(int(mainSym[1]), int(mainSym[3])), "w": locMove.get("w")}
-            recursiveSym(img01, symmetries, depth, minSize, newLocMove)
+            recursiveSym(img01, symmetries, depth, minSize, rc, newLocMove)
 
             newLocMove = {"h": locMove.get("h") + min(int(mainSym[1]), int(mainSym[3])), "w": locMove.get("w") + int(mainSym[0])}
-            recursiveSym(img02, symmetries, depth, minSize, newLocMove)
+            recursiveSym(img02, symmetries, depth, minSize, rc, newLocMove)
         elif abs(mainSym[1] - mainSym[3]) < w/10:
             img01 = img[0:int(mainSym[1]), min(int(mainSym[0]), int(mainSym[2])):max(int(mainSym[0]), int(mainSym[2]))]
             img02 = img[int(mainSym[1]):h, min(int(mainSym[0]), int(mainSym[2])):max(int(mainSym[0]), int(mainSym[2]))]
 
             newLocMove = {"h": locMove.get("h"), "w": locMove.get("w") + min(int(mainSym[0]), int(mainSym[2]))}
-            recursiveSym(img01, symmetries, depth, minSize, newLocMove)
+            recursiveSym(img01, symmetries, depth, minSize, rc, newLocMove)
             
             newLocMove = {"h": locMove.get("h") + int(mainSym[1]), "w": locMove.get("w") + min(int(mainSym[0]), int(mainSym[2]))}
-            recursiveSym(img02, symmetries, depth, minSize, newLocMove)
+            recursiveSym(img02, symmetries, depth, minSize, rc, newLocMove)
 
 
 if __name__ == "__main__":
@@ -140,6 +140,7 @@ if __name__ == "__main__":
     print(modelFileName)
 
     print("Fetching symmetries ...")
+
     for i, img in enumerate(imgList, start=1):
         print(img + " [" + str(i) + "/" + str(len(imgList)) + "]")
         imgOut = outDir + img
@@ -152,7 +153,7 @@ if __name__ == "__main__":
         h, w, _ = data.shape
         minSize = {"h" : h / 5, "w": w / 5}
         symmetries = []
-        recursiveSym(data, symmetries, -1, minSize)
+        recursiveSym(data, symmetries, -1, minSize, rc)
         images.append([symmetries, data, imgOut])
 
     # Process images
@@ -162,12 +163,9 @@ if __name__ == "__main__":
         symmetries = img[0].copy()
         data = img[1]
         imgOut = img[2]
-
-        # imgOut = imgOut.split("/")[0] + "/" + imgOut.split("/")[1] + "/" + imgOut.split("/")[2] + "/" + imgOut.split("/")[4]
         
         symmetries = util.placeInOrder(symmetries)
         if len(symmetries) != 0:
-
             # Slow mode uses the machine learning model, will increase performance for detecting rotational symmetries
             if args.mode == "slow":
                 symmetries = util.removeBadSymmetries(symmetries, symThresholdBC, normThresholdBC)
@@ -181,7 +179,7 @@ if __name__ == "__main__":
             util.removeSimilarRotational(rotations, data, rotationSimilarity)
             util.plotLines(symmetries)
             util.plotRotations(rotations)
-        plt.imshow(data)
+        plt.imshow(data)    
         plt.savefig(imgOut[0:-4] + '.png')
         plt.show(block=False)
         plt.pause(1)

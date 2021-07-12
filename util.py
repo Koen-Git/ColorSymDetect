@@ -119,7 +119,8 @@ def removeBadCuts(symmetries, symThreshold):
 def removeBadSymmetries(symmetries, symThreshold, normThreshold):
     copySym = symmetries[:]
 
-    for i in range(0, len(symmetries)):
+    # Start from one, always keep first symmetry
+    for i in range(1, len(symmetries)):
         if symmetries[i] not in copySym:
             continue
         if symmetries[i][3] < normThreshold:
@@ -131,6 +132,11 @@ def removeBadSymmetries(symmetries, symThreshold, normThreshold):
                 if j >= len(symmetries):
                     break
                 while (symmetries[i][4] == symmetries[j][4]):
+                    if symmetries[j] not in copySym:
+                        j = j + 1
+                        if j >= len(symmetries):
+                            break
+                        continue
                     copySym.remove(symmetries[j])
                     j = j + 1
                     if j >= len(symmetries):
@@ -167,33 +173,14 @@ def removeSimilarLines(symmetries, image, lineSimilarity):
             if copySym[j] not in symmetries:
                 continue
             if abs(copySym[i][1] - copySym[j][1]) < maxSlopeDiff or (abs(copySym[i][1]) > height / 3 and abs(copySym[j][1]) > height / 3):
-                dist = np.sqrt( (copySym[i][0][0] - copySym[j][0][0])**2 + (copySym[i][0][1] - copySym[j][0][1])**2 )
+                center1 = (((copySym[i][0][0] + copySym[i][0][2]) / 2), ((copySym[i][0][1] + copySym[i][0][3]) / 2))
+                center2 = (((copySym[j][0][0] + copySym[j][0][2]) / 2), ((copySym[j][0][1] + copySym[j][0][3]) / 2))
+                dist = np.sqrt( (center1[0] - center2[0])**2 + (center1[1] - center2[1])**2 )
                 if dist < maxDist:
-                    dist = np.sqrt( (copySym[i][0][2] - copySym[j][0][2])**2 + (copySym[i][0][3] - copySym[j][0][3])**2 )
-                    if dist < maxDist * (lineSimilarity * 0.66):
+                    if i == 0:
+                        symmetries.remove(copySym[j])
+                    else:
                         symmetries.remove(lowerScore(copySym[i], copySym[j]))
-                        continue
-                
-                dist = np.sqrt( (copySym[i][0][0] - copySym[j][0][2])**2 + (copySym[i][0][1] - copySym[j][0][3])**2 )
-                if dist < maxDist:
-                    dist = np.sqrt( (copySym[i][0][2] - copySym[j][0][0])**2 + (copySym[i][0][3] - copySym[j][0][1])**2 )
-                    if dist < maxDist * (lineSimilarity * 0.66):
-                        symmetries.remove(lowerScore(copySym[i], copySym[j]))
-                        continue
-
-                dist = np.sqrt( (copySym[i][0][2] - copySym[j][0][0])**2 + (copySym[i][0][3] - copySym[j][0][1])**2 )
-                if dist < maxDist:
-                    dist = np.sqrt( (copySym[i][0][0] - copySym[j][0][2])**2 + (copySym[i][0][1] - copySym[j][0][3])**2 )
-                    if dist < maxDist * (lineSimilarity * 0.66):
-                        symmetries.remove(lowerScore(copySym[i], copySym[j]))
-                        continue
-                
-                dist = np.sqrt( (copySym[i][0][2] - copySym[j][0][2])**2 + (copySym[i][0][3] - copySym[j][0][3])**2 )
-                if dist < maxDist:
-                    dist = np.sqrt( (copySym[i][0][0] - copySym[j][0][0])**2 + (copySym[i][0][0] - copySym[j][0][1])**2 )
-                    if dist < maxDist * (lineSimilarity * 0.66):
-                        symmetries.remove(lowerScore(copySym[i], copySym[j]))
-                        continue
     return symmetries
 
 # Remove similar rotational symmetries
@@ -207,8 +194,11 @@ def removeSimilarRotational(rotations, image, rotationSimilarity):
     maxDistY = height / rotationSimilarity
     copyRot = rotations[:]
 
-    def higherDepth(rot1, rot2):
-        if rot1[2] > rot2[2]:
+    def removeRot(rot1, rot2):
+        # i=1 -> Remove rotaional with smaller radius 
+        # i=2 -> Remove rotational with lower average scores of reflection symmetries that made the rotation:
+        i = 1
+        if rot1[i] < rot2[i]:
             return rot1
         return rot2
 
@@ -221,7 +211,7 @@ def removeSimilarRotational(rotations, image, rotationSimilarity):
             if abs(copyRot[i][0][0] - copyRot[j][0][0]) < maxDistX:
                 if abs(copyRot[i][0][1] - copyRot[j][0][1]) < maxDistY:
                     if abs(copyRot[i][1] - copyRot[j][1]) < max(maxDistX, maxDistY):
-                        rotations.remove(higherDepth(copyRot[i], copyRot[j]))
+                        rotations.remove(removeRot(copyRot[i], copyRot[j]))
 
 # Checks if distance between intersection point and endpoints of reflection lines is similar enough
 # Used to calculate rotational symmetries with a non ML approach
@@ -256,7 +246,7 @@ def checkDistance(intersect, line1, line2, distDifference):
 def rotationalSymmetriesML(symmetries, model, data):
     h, w, _ = data.shape
     rotations = []
-    tmp = []
+    data = pd.DataFrame()
     for i in range(0, len(symmetries)):
         for j in range(i + 1, len(symmetries)):
             intersect = line_intersect(symmetries[i][0][0], symmetries[i][0][1], symmetries[i][0][2], symmetries[i][0][3], symmetries[j][0][0], symmetries[j][0][1], symmetries[j][0][2], symmetries[j][0][3])
@@ -276,24 +266,20 @@ def rotationalSymmetriesML(symmetries, model, data):
                 "height": h,
                 "width": w
             }, name="rotation")
-            data = pd.DataFrame()
             data = data.append(s, ignore_index=False)
-            
-            data = preprocess.preproccesData(data)
-            pred = model.predict(data)
-            
-            if pred == True:
-                rad = minDistance(intersect, symmetries[i][0], symmetries[j][0])
-                meanDepth = (symmetries[i][4] + symmetries[j][4]) / 2
-                rot = [intersect, rad, meanDepth]
-                rotations.append(rot)
-                if symmetries[i] not in tmp:
-                    tmp.append(symmetries[i])
-                if symmetries[j] not in tmp:
-                    tmp.append(symmetries[j])
+    if len(data) > 0:
+        cpyData = data.copy()
+        data = preprocess.preproccesData(data)
+        pred = model.predict(data)
 
-    for t in tmp:
-        symmetries.remove(t)
+        for i in range(0, len(data)):
+            if pred[i] == True:
+                intersect = line_intersect(cpyData["line1x1"][i], cpyData["line1y1"][i], cpyData["line1x2"][i], cpyData["line1y2"][i], cpyData["line2x1"][i], cpyData["line2y1"][i], cpyData["line2x2"][i], cpyData["line2y2"][i])
+                rad = minDistance(intersect, [cpyData["line1x1"][i], cpyData["line1y1"][i], cpyData["line1x2"][i], cpyData["line1y2"][i]], [cpyData["line2x1"][i], cpyData["line2y1"][i], cpyData["line2x2"][i], cpyData["line2y2"][i]])
+                meanScore = (cpyData["line1Score"][i] + cpyData["line2Score"][i]) / 2
+                rot = [intersect, rad, meanScore]
+                rotations.append(rot)
+
     return rotations
 
 # Find rotaional symmetries given reflection symmetries and a threshold
@@ -325,16 +311,9 @@ def rotationalSymmetries(symmetries, image, circleSymThreshold):
                 if checkDistance(intersect, sym[0], subsym[0], distDifference) == False:
                     continue
                 rad = minDistance(intersect, sym[0], subsym[0])
-                meanDepth = (sym[4] + subsym[4]) / 2
-                rot = [intersect, rad, meanDepth]
+                meanScore = (sym[2] + subsym[2]) / 2
+                rot = [intersect, rad, meanScore]
                 rotations.append(rot)
-                if sym not in tmp:
-                    tmp.append(sym)
-                if subsym not in tmp:
-                    tmp.append(subsym)
-    # Remove symmetries that create rotational
-    for t in tmp:
-        symmetries.remove(t)
     return rotations
 
 # Plot all given reflection symmetry lines
